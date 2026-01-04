@@ -1,0 +1,25 @@
+{
+  "version": "1.0.0",
+  "app_name": "AutoModRenpy",
+  "default_keystore": "tools/debug.keystore",
+  "keystore_password": "android",
+  "keystore_alias": "androiddebugkey",
+  "apktool_path": "tools/apktool.bat",
+  "apksigner_path": "tools/apksigner.bat",
+  "zipalign_path": "tools/zipalign.exe",
+  "temp_dir": "temp",
+  "backup_dir": "backups",
+  "mod_prefix": "z",
+  "conflict_strategy": "overwrite",
+  "extract_rpa_before_mod": true,
+  "cache_file": "cache/game_locations.json",
+  "max_cache_entries": 100,
+  "supported_rpa_versions": ["RPA-2.0", "RPA-3.0", "RPA-4.0"],
+  "renpy_markers": ["options.rpyc", "script.rpyc", "screens.rpyc"],
+  "validation": {
+    "check_indentation": true,
+    "indent_size": 4,
+    "warn_on_errors": true,
+    "block_on_errors": false
+  }
+}

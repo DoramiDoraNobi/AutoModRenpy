@@ -1,0 +1,30 @@
+# AutoModRenpy Dependencies
+
+# UnRPA - Extract Renpy archives
+unrpa>=2.0.0
+
+# APK manipulation
+# Note: apktool requires Java to be installed separately
+# Download from: https://ibotpeaches.github.io/Apktool/
+
+# GUI Framework
+tkinter-tooltip>=2.1.0
+pillow>=10.0.0
+
+# File operations and utilities
+pathlib>=1.0.1
+
+# XML parsing for AndroidManifest
+lxml>=4.9.0
+
+# Progress tracking
+tqdm>=4.65.0
+
+# ZIP operations (built-in)
+# zipfile - standard library
+
+# Subprocess for external tools
+# subprocess - standard library
+
+# JSON for config
+# json - standard library
