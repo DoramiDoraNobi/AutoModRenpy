@@ -8,6 +8,7 @@ import subprocess
 import zipfile
 from typing import Optional
 from pathlib import Path
+from src.utils import get_resource_path
 
 
 class APKHandler:
@@ -390,11 +391,7 @@ class APKHandler:
         if os.path.isabs(path):
             return path
         
-        # If relative, resolve relative to the directory containing this script
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        parent_dir = os.path.dirname(script_dir)  # Go up to repo root
-        resolved = os.path.join(parent_dir, path)
-        return os.path.abspath(resolved)
+        return get_resource_path(path)
     
     def _find_keytool(self) -> Optional[str]:
         """

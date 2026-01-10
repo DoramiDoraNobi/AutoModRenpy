@@ -7,6 +7,7 @@ import shutil
 import json
 from datetime import datetime
 from typing import List, Dict, Optional
+from src.utils import get_resource_path
 
 
 class BackupEntry:
@@ -46,12 +47,16 @@ class BackupManager:
     """Manage backups of original APK files"""
     
     def __init__(self, backup_dir: str, logger=None):
-        self.backup_dir = backup_dir
+        if not os.path.isabs(backup_dir):
+            self.backup_dir = get_resource_path(backup_dir)
+        else:
+            self.backup_dir = backup_dir
+
         self.logger = logger
-        self.index_file = os.path.join(backup_dir, 'backup_index.json')
+        self.index_file = os.path.join(self.backup_dir, 'backup_index.json')
         
         # Ensure backup directory exists
-        os.makedirs(backup_dir, exist_ok=True)
+        os.makedirs(self.backup_dir, exist_ok=True)
         
         # Load backup index
         self.backups = self._load_index()

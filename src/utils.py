@@ -2,18 +2,45 @@
 AutoModRenpy - Utility functions and helpers
 """
 import os
+import sys
 import json
 import hashlib
 import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+def get_app_root() -> str:
+    """
+    Get the application root directory.
+    If running as script, returns the directory containing main.py.
+    If running as frozen exe, returns the directory containing the exe.
+    """
+    if getattr(sys, 'frozen', False):
+        # Running as compiled exe
+        return os.path.dirname(sys.executable)
+    else:
+        # Running as script
+        # Assuming src/utils.py is 1 level deep from root
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.dirname(script_dir)
+
+def get_resource_path(relative_path: str) -> str:
+    """
+    Get absolute path to a resource.
+    Resolves relative to app root.
+    """
+    return os.path.join(get_app_root(), relative_path)
 
 class Config:
     """Configuration manager for AutoModRenpy"""
     
     def __init__(self, config_path: str = "config.json"):
-        self.config_path = config_path
+        # Resolve config path relative to app root if it's relative
+        if not os.path.isabs(config_path):
+            self.config_path = get_resource_path(config_path)
+        else:
+            self.config_path = config_path
+
         self.config = self._load_config()
     
     def _load_config(self) -> Dict[str, Any]:
@@ -22,7 +49,7 @@ class Config:
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except FileNotFoundError:
-            print(f"Warning: Config file not found at {self.config_path}")
+            # Don't spam warning if creating default
             return {}
         except json.JSONDecodeError as e:
             print(f"Error parsing config file: {e}")
@@ -39,8 +66,11 @@ class Config:
     
     def _save_config(self):
         """Save configuration to file"""
-        with open(self.config_path, 'w', encoding='utf-8') as f:
-            json.dump(self.config, f, indent=2)
+        try:
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, indent=2)
+        except Exception as e:
+            print(f"Error saving config: {e}")
 
 
 class Logger:
@@ -48,9 +78,12 @@ class Logger:
     
     def __init__(self, log_file: Optional[str] = None, verbose: bool = True):
         self.log_file = log_file
+        if log_file and not os.path.isabs(log_file):
+            self.log_file = get_resource_path(log_file)
+
         self.verbose = verbose
-        if log_file:
-            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        if self.log_file:
+            os.makedirs(os.path.dirname(self.log_file), exist_ok=True)
     
     def info(self, message: str):
         """Log info message"""
@@ -76,8 +109,11 @@ class Logger:
             print(log_message)
         
         if self.log_file:
-            with open(self.log_file, 'a', encoding='utf-8') as f:
-                f.write(log_message + '\n')
+            try:
+                with open(self.log_file, 'a', encoding='utf-8') as f:
+                    f.write(log_message + '\n')
+            except Exception:
+                pass
 
 
 def calculate_file_hash(file_path: str) -> str:
@@ -91,11 +127,17 @@ def calculate_file_hash(file_path: str) -> str:
 
 def ensure_dir(directory: str):
     """Ensure directory exists"""
+    # If directory is relative, make it absolute relative to app root
+    if not os.path.isabs(directory):
+        directory = get_resource_path(directory)
     os.makedirs(directory, exist_ok=True)
 
 
 def clean_temp_dir(temp_dir: str):
     """Clean temporary directory"""
+    if not os.path.isabs(temp_dir):
+        temp_dir = get_resource_path(temp_dir)
+
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir)
     ensure_dir(temp_dir)
@@ -138,9 +180,13 @@ class Cache:
     """Simple file-based cache for game locations"""
     
     def __init__(self, cache_file: str, max_entries: int = 100):
-        self.cache_file = cache_file
+        if not os.path.isabs(cache_file):
+            self.cache_file = get_resource_path(cache_file)
+        else:
+            self.cache_file = cache_file
+
         self.max_entries = max_entries
-        ensure_dir(os.path.dirname(cache_file))
+        ensure_dir(os.path.dirname(self.cache_file))
         self.cache = self._load_cache()
     
     def _load_cache(self) -> Dict[str, str]:
@@ -155,8 +201,11 @@ class Cache:
     
     def _save_cache(self):
         """Save cache to file"""
-        with open(self.cache_file, 'w', encoding='utf-8') as f:
-            json.dump(self.cache, f, indent=2)
+        try:
+            with open(self.cache_file, 'w', encoding='utf-8') as f:
+                json.dump(self.cache, f, indent=2)
+        except Exception:
+            pass
     
     def get(self, key: str) -> Optional[str]:
         """Get value from cache"""
