@@ -18,6 +18,7 @@ from src.apk_handler import APKHandler
 from src.mod_processor import ModProcessor, ConflictStrategy
 from src.script_validator import ScriptValidator
 from src.backup_manager import BackupManager
+from src.porter import PortingEngine
 
 
 class AutoModRenpyGUI:
@@ -25,8 +26,8 @@ class AutoModRenpyGUI:
     
     def __init__(self, root):
         self.root = root
-        self.root.title("AutoModRenpy - Android Renpy Mod Installer")
-        self.root.geometry("900x700")
+        self.root.title("AutoModRenpy - Android Renpy Mod Installer & Porter")
+        self.root.geometry("900x750")
         
         # Initialize components
         self.config = Config()
@@ -40,6 +41,7 @@ class AutoModRenpyGUI:
             self.config.get('backup_dir', 'backups'),
             self.logger
         )
+        self.porter = PortingEngine(self.config, self.logger)
         
         # State variables
         self.selected_apk = tk.StringVar()
@@ -47,6 +49,16 @@ class AutoModRenpyGUI:
         self.mod_folders = []
         self.custom_keystore = tk.StringVar()
         
+        # Porting variables
+        self.pc_game_dir = tk.StringVar()
+        self.base_apk_path = tk.StringVar()
+        self.port_app_name = tk.StringVar()
+        self.port_package_name = tk.StringVar()
+        self.port_icon_path = tk.StringVar()
+        self.port_resize = tk.BooleanVar(value=True)
+        self.port_webp = tk.BooleanVar(value=False)
+        self.port_hotkeys = tk.BooleanVar(value=True)
+
         # Create GUI
         self.create_widgets()
     
@@ -56,11 +68,16 @@ class AutoModRenpyGUI:
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Main tab
+        # Main tab (Mod Installer)
         self.main_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.main_tab, text="Main")
+        self.notebook.add(self.main_tab, text="Mod Installer")
         self.create_main_tab()
         
+        # Porting Tab (PC to Android)
+        self.porting_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.porting_tab, text="PC to Android")
+        self.create_porting_tab()
+
         # UnRPA tab
         self.unrpa_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.unrpa_tab, text="UnRPA Extractor")
@@ -147,6 +164,57 @@ class AutoModRenpyGUI:
         )
         self.progress_bar.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
     
+    def create_porting_tab(self):
+        """Create PC to Android porting tab"""
+
+        # 1. Source Files
+        source_frame = ttk.LabelFrame(self.porting_tab, text="1. Source Files", padding=10)
+        source_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        # PC Game Directory
+        ttk.Label(source_frame, text="PC Game Directory:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(source_frame, textvariable=self.pc_game_dir, width=50).grid(row=0, column=1, padx=5)
+        ttk.Button(source_frame, text="Browse", command=self.browse_pc_game).grid(row=0, column=2)
+
+        # Base APK
+        ttk.Label(source_frame, text="Base APK (Template):").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(source_frame, textvariable=self.base_apk_path, width=50).grid(row=1, column=1, padx=5)
+        ttk.Button(source_frame, text="Browse", command=self.browse_base_apk).grid(row=1, column=2)
+
+        # 2. App Details
+        details_frame = ttk.LabelFrame(self.porting_tab, text="2. App Details", padding=10)
+        details_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        ttk.Label(details_frame, text="App Name:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(details_frame, textvariable=self.port_app_name, width=40).grid(row=0, column=1, sticky=tk.W, padx=5)
+
+        ttk.Label(details_frame, text="Package Name:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(details_frame, textvariable=self.port_package_name, width=40).grid(row=1, column=1, sticky=tk.W, padx=5)
+        ttk.Label(details_frame, text="(e.g., com.developer.game)").grid(row=1, column=2, sticky=tk.W)
+
+        ttk.Label(details_frame, text="App Icon (PNG):").grid(row=2, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(details_frame, textvariable=self.port_icon_path, width=40).grid(row=2, column=1, sticky=tk.W, padx=5)
+        ttk.Button(details_frame, text="Browse", command=self.browse_icon).grid(row=2, column=2, sticky=tk.W)
+
+        # 3. Optimization & Features
+        opt_frame = ttk.LabelFrame(self.porting_tab, text="3. Optimization & Features", padding=10)
+        opt_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        ttk.Checkbutton(opt_frame, text="Resize Images to 720p (Recommended for performance)", variable=self.port_resize).pack(anchor=tk.W)
+        ttk.Checkbutton(opt_frame, text="Convert Images to WebP (Smaller size)", variable=self.port_webp).pack(anchor=tk.W)
+        ttk.Checkbutton(opt_frame, text="Add Android Hotkeys (Skip, Menu, Hide UI)", variable=self.port_hotkeys).pack(anchor=tk.W)
+
+        # 4. Build Button
+        build_frame = ttk.Frame(self.porting_tab)
+        build_frame.pack(fill=tk.X, padx=10, pady=10)
+
+        ttk.Button(
+            build_frame,
+            text="▶ Build Android APK",
+            command=self.start_porting,
+            style="Accent.TButton"
+        ).pack(fill=tk.X)
+
     def create_unrpa_tab(self):
         """Create UnRPA extraction tab"""
         # RPA file selection
@@ -263,6 +331,62 @@ class AutoModRenpyGUI:
         self.log_text.config(state=tk.DISABLED)
         self.root.update_idletasks()
     
+    # Porting Helpers
+    def browse_pc_game(self):
+        folder = filedialog.askdirectory(title="Select PC Game Directory")
+        if folder:
+            self.pc_game_dir.set(folder)
+
+    def browse_base_apk(self):
+        file = filedialog.askopenfilename(title="Select Base APK", filetypes=[("APK Files", "*.apk")])
+        if file:
+            self.base_apk_path.set(file)
+
+    def browse_icon(self):
+        file = filedialog.askopenfilename(title="Select Icon", filetypes=[("PNG Images", "*.png")])
+        if file:
+            self.port_icon_path.set(file)
+
+    def start_porting(self):
+        if not self.pc_game_dir.get() or not self.base_apk_path.get():
+            messagebox.showwarning("Missing Inputs", "Please select PC Game Directory and Base APK.")
+            return
+
+        thread = threading.Thread(target=self._porting_thread)
+        thread.start()
+
+    def _porting_thread(self):
+        try:
+            output_path = filedialog.asksaveasfilename(
+                title="Save Android APK As",
+                defaultextension=".apk",
+                filetypes=[("APK Files", "*.apk")]
+            )
+            if not output_path:
+                return
+
+            self.logger.info("Starting PC to Android porting...")
+
+            success = self.porter.port_game(
+                pc_game_dir=self.pc_game_dir.get(),
+                base_apk_path=self.base_apk_path.get(),
+                output_apk_path=output_path,
+                app_name=self.port_app_name.get() or None,
+                package_name=self.port_package_name.get() or None,
+                icon_path=self.port_icon_path.get() or None,
+                resize=self.port_resize.get(),
+                webp=self.port_webp.get(),
+                hotkeys=self.port_hotkeys.get()
+            )
+
+            if success:
+                messagebox.showinfo("Success", f"APK built successfully:\n{output_path}")
+            else:
+                messagebox.showerror("Failed", "Porting failed. Check log.")
+        except Exception as e:
+            self.logger.error(f"Porting error: {e}")
+
+    # ... existing methods ...
     def browse_apk(self):
         """Browse for APK file"""
         filename = filedialog.askopenfilename(
