@@ -1,6 +1,6 @@
 """
 Main Application Entry Point
-Complete mod installation workflow
+Complete mod installation workflow and PC-to-Android porting
 """
 import os
 import sys
@@ -17,10 +17,11 @@ from src.apk_handler import APKHandler
 from src.mod_processor import ModProcessor, ConflictStrategy
 from src.script_validator import ScriptValidator
 from src.backup_manager import BackupManager
+from src.porter import PortingEngine
 
 
 class AutoModRenpy:
-    """Main application class for mod installation workflow"""
+    """Main application class for mod installation and porting"""
     
     def __init__(self, config_path: str = "config.json", logger: Logger | None = None):
         self.config = Config(config_path)
@@ -30,13 +31,14 @@ class AutoModRenpy:
         # Initialize components
         self.apk_handler = APKHandler(self.config, self.logger)
         self.game_detector = GameLocationDetector(self.logger)
-        self.unrpa = UnRPAExtractor(self.logger)
+        self.unrpa_extractor = UnRPAExtractor(self.logger) # Fixed name
         self.mod_processor = ModProcessor(self.config, self.logger)
         self.script_validator = ScriptValidator(self.logger)
         self.backup_manager = BackupManager(
             self.config.get('backup_dir', 'backups'),
             self.logger
         )
+        self.porter = PortingEngine(self.config, self.logger)
         
         # Cache for game locations
         cache_file = self.config.get('cache_file', 'cache/game_locations.json')
@@ -135,7 +137,7 @@ class AutoModRenpy:
                     rpa_full_path = os.path.join(game_full_path, rpa_file)
                     self.logger.info(f"Extracting: {rpa_file}")
                     try:
-                        if self.unrpa_extractor.extract_rpa(rpa_full_path, game_full_path):
+                        if self.unrpa_extractor.extract_archive(rpa_full_path, game_full_path):
                             rpa_extract_count += 1
                         else:
                             self.logger.warning(f"Failed to extract: {rpa_file}")
@@ -314,60 +316,86 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(
-        description="AutoModRenpy - Android Renpy Game Mod Installer",
+        description="AutoModRenpy - Android Renpy Game Mod Installer & Porter",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Install single mod
   python main.py --apk game.apk --mod mod_folder/ --output modded_game.apk
   
-  # Install multiple mods (priority order)
-  python main.py --apk game.apk --mod mod1/ mod2/ mod3/ --output modded.apk
-  
-  # Use custom keystore
-  python main.py --apk game.apk --mod mod/ --output modded.apk --keystore custom.jks
-  
-  # Skip backup
-  python main.py --apk game.apk --mod mod/ --output modded.apk --no-backup
+  # Port PC game to Android
+  python main.py --port --pc-game path/to/game --base-apk base.apk --output ported.apk
         """
     )
     
-    parser.add_argument('--apk', required=True, help='Path to original APK file')
-    parser.add_argument('--mod', nargs='+', required=True, help='Mod folder(s) in priority order')
-    parser.add_argument('--output', required=True, help='Path for output modded APK')
-    parser.add_argument('--keystore', help='Path to custom keystore (optional)')
+    # Common arguments
+    parser.add_argument('--gui', action='store_true', help='Launch GUI mode')
+
+    # Porting mode flag
+    parser.add_argument('--port', action='store_true', help='Enable PC to Android porting mode')
+
+    # Modding arguments
+    parser.add_argument('--apk', help='Path to original APK file (for modding)')
+    parser.add_argument('--mod', nargs='+', help='Mod folder(s) (for modding)')
+    parser.add_argument('--output', help='Path for output APK')
+    parser.add_argument('--keystore', help='Path to custom keystore')
     parser.add_argument('--no-backup', action='store_true', help='Skip creating backup')
     parser.add_argument('--strategy', choices=['new_file', 'replace', 'skip'], 
                        default='new_file', help='Conflict resolution strategy')
-    parser.add_argument('--gui', action='store_true', help='Launch GUI mode')
+
+    # Porting arguments
+    parser.add_argument('--pc-game', help='Path to PC game directory (for porting)')
+    parser.add_argument('--base-apk', help='Path to Base APK (for porting)')
+    parser.add_argument('--app-name', help='App Name (for porting)')
+    parser.add_argument('--package-name', help='Package Name e.g. com.game (for porting)')
+    parser.add_argument('--icon', help='Path to icon PNG (for porting)')
+    parser.add_argument('--resize', action='store_true', help='Resize images to 720p')
+    parser.add_argument('--webp', action='store_true', help='Convert images to WebP')
+    parser.add_argument('--hotkeys', action='store_true', help='Inject Android hotkeys')
     
     args = parser.parse_args()
     
-    # Launch GUI if requested
-    if args.gui:
+    # Launch GUI if requested or no args
+    if args.gui or len(sys.argv) == 1:
         from gui import main as gui_main
         gui_main()
         return
     
-    # CLI mode
     app = AutoModRenpy()
     
-    success = app.install_mods(
-        apk_path=args.apk,
-        mod_folders=args.mod,
-        output_apk=args.output,
-        custom_keystore=args.keystore,
-        create_backup=not args.no_backup,
-        conflict_strategy=args.strategy
-    )
+    if args.port:
+        if not args.pc_game or not args.base_apk or not args.output:
+            print("Error: --pc-game, --base-apk, and --output are required for porting mode.")
+            sys.exit(1)
+
+        success = app.porter.port_game(
+            pc_game_dir=args.pc_game,
+            base_apk_path=args.base_apk,
+            output_apk_path=args.output,
+            app_name=args.app_name,
+            package_name=args.package_name,
+            icon_path=args.icon,
+            resize=args.resize,
+            webp=args.webp,
+            hotkeys=args.hotkeys
+        )
+    else:
+        # Modding mode
+        if not args.apk or not args.mod or not args.output:
+            print("Error: --apk, --mod, and --output are required for modding mode.")
+            sys.exit(1)
+
+        success = app.install_mods(
+            apk_path=args.apk,
+            mod_folders=args.mod,
+            output_apk=args.output,
+            custom_keystore=args.keystore,
+            create_backup=not args.no_backup,
+            conflict_strategy=args.strategy
+        )
     
     sys.exit(0 if success else 1)
 
 
 if __name__ == "__main__":
-    # Check if running without arguments - launch GUI
-    if len(sys.argv) == 1:
-        from gui import main as gui_main
-        gui_main()
-    else:
-        main()
+    main()
