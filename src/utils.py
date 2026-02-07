@@ -5,6 +5,7 @@ import os
 import json
 import hashlib
 import shutil
+import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -70,7 +71,8 @@ class Logger:
     
     def _log(self, level: str, message: str):
         """Internal logging method"""
-        log_message = f"[{level}] {message}"
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_message = f"[{timestamp}] [{level}] {message}"
         
         if self.verbose:
             print(log_message)

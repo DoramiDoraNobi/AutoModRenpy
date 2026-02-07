@@ -20,6 +20,9 @@ class AndroidFeatures:
         """
         self.log("Injecting Android hotkeys...")
 
+        # Ensure we also inject general configuration
+        self.inject_android_config(game_dir)
+
         file_path = os.path.join(game_dir, 'android_buttons.rpy')
 
         content = """
@@ -27,57 +30,71 @@ class AndroidFeatures:
 # Adds on-screen buttons for Android navigation
 
 init python:
-    # Add the screen to the overlay so it's always visible
-    config.overlay_screens.append("mobile_overlay")
+    # Safely add the screen to the overlay
+    if "mobile_overlay" not in config.overlay_screens:
+        config.overlay_screens.append("mobile_overlay")
+
+    # Define a variable to toggle visibility
+    if not hasattr(store, "mobile_ui_visible"):
+        store.mobile_ui_visible = True
 
 screen mobile_overlay():
     zorder 100
 
-    # Only show if not in a menu and not in a cutscene (rough check)
-    if not renpy.get_screen("save") and not renpy.get_screen("preferences") and not renpy.get_screen("main_menu"):
+    # Check if UI should be visible
+    if getattr(store, "mobile_ui_visible", True):
+        # Only show if not in main menu
+        if not renpy.get_screen("main_menu"):
 
-        frame:
-            background None
-            xalign 1.0
-            yalign 0.0
-            xoffset -10
-            yoffset 10
+            frame:
+                background None
+                xalign 1.0
+                yalign 0.0
+                xoffset -10
+                yoffset 10
 
-            hbox:
-                spacing 20
+                hbox:
+                    spacing 15
 
-                # Hide UI Button
-                textbutton "Hide":
-                    action HideInterface()
-                    text_size 30
-                    text_color "#ffffff99" # Semi-transparent white
-                    text_outlines [(2, "#000000", 0, 0)]
+                    # Toggle Button (Small dot/icon when hidden? No, just keep it visible)
 
-                # Skip Button
-                textbutton "Skip":
-                    action Skip()
-                    text_size 30
-                    text_color "#ffffff99"
-                    text_outlines [(2, "#000000", 0, 0)]
+                    if not renpy.get_screen("save") and not renpy.get_screen("preferences"):
+                        # Standard Controls
 
-                # History/Log Button (if supported)
-                textbutton "Log":
-                    action ShowMenu("history")
-                    text_size 30
-                    text_color "#ffffff99"
-                    text_outlines [(2, "#000000", 0, 0)]
+                        textbutton "Skip":
+                            action Skip()
+                            style "mobile_button"
 
-                # Menu/Save Button
-                textbutton "Menu":
-                    action ShowMenu("save")
-                    text_size 30
-                    text_color "#ffffff99"
-                    text_outlines [(2, "#000000", 0, 0)]
+                        textbutton "Auto":
+                            action Preference("auto-forward", "toggle")
+                            style "mobile_button"
+
+                        textbutton "Log":
+                            action ShowMenu("history")
+                            style "mobile_button"
+
+                        textbutton "Save":
+                            action ShowMenu("save")
+                            style "mobile_button"
+
+                        textbutton "Load":
+                            action ShowMenu("load")
+                            style "mobile_button"
+
+                        textbutton "Hide UI":
+                            action HideInterface()
+                            style "mobile_button"
+
+style mobile_button:
+    padding (10, 5)
+    background "#00000044" # Semi-transparent black background for better visibility
+    hover_background "#ffffff44"
 
 style mobile_button_text:
-    size 30
+    size 24
     color "#ffffff"
     outlines [(2, "#000000", 0, 0)]
+    hover_color "#ffff00"
 """
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
@@ -86,4 +103,32 @@ style mobile_button_text:
             return True
         except Exception as e:
             self.log(f"Failed to create android_buttons.rpy: {e}")
+            return False
+
+    def inject_android_config(self, game_dir):
+        """
+        Injects android-specific configuration into the game.
+        This helps when binary XML editing is not possible.
+        """
+        config_path = os.path.join(game_dir, 'android_config.rpy')
+
+        content = """
+# Android specific configuration
+init python:
+    # Force touch input enabled
+    config.variants = ["phone", "touch", "mobile"] + config.variants
+
+    # Scale text size for mobile if needed
+    # gui.text_size = 30
+
+    # Enable android-specific interactions
+    config.android_back_button = "rollback"
+"""
+        try:
+            with open(config_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            self.log("Created android_config.rpy")
+            return True
+        except Exception as e:
+            self.log(f"Failed to create android_config.rpy: {e}")
             return False

@@ -232,7 +232,11 @@ class AutoModRenpy:
             
             # Step 8: Modify AndroidManifest for signature bypass
             self.logger.info("\n[Step 8/9] Applying signature bypass...")
-            self._apply_signature_bypass(extract_dir)
+            if getattr(self.apk_handler, 'used_apktool', False):
+                self._apply_signature_bypass(extract_dir)
+            else:
+                self.logger.warning("Skipping manifest modification (ZIP extraction used)")
+                self.logger.warning("Binary XML cannot be safely modified without apktool")
             
             # Step 9: Repackage APK
             self.logger.info("\n[Step 9/9] Repackaging and signing APK...")
@@ -241,6 +245,10 @@ class AutoModRenpy:
                 self.logger.error("APK repackaging failed")
                 return False
             
+            # Zipalign APK
+            if not self.apk_handler.zipalign_apk(output_apk):
+                self.logger.warning("Zipalign failed - APK might not install on some devices")
+
             # Sign APK
             if not self.apk_handler.sign_apk(output_apk, custom_keystore):
                 self.logger.error("APK signing failed")
@@ -377,7 +385,9 @@ Examples:
             icon_path=args.icon,
             resize=args.resize,
             webp=args.webp,
-            hotkeys=args.hotkeys
+            hotkeys=args.hotkeys,
+            mod_folders=args.mod,
+            conflict_strategy=args.strategy
         )
     else:
         # Modding mode
