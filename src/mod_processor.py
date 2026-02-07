@@ -197,6 +197,7 @@ class ModProcessor:
                 if mod_file.conflicts:
                     if strategy == ConflictStrategy.REPLACE:
                         stats['replaced'] += 1
+                        self._log_warning(f"  -> Replaced original file: {mod_file.filename}")
                     elif strategy == ConflictStrategy.NEW_FILE:
                         stats['new_files'] += 1
                 

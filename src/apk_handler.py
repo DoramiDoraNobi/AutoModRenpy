@@ -21,6 +21,7 @@ class APKHandler:
         self.apksigner_path = self._resolve_path(config.get('apksigner_path', 'tools/apksigner.bat'))
         self.zipalign_path = self._resolve_path(config.get('zipalign_path', 'tools/zipalign.exe'))
         self.temp_dir = config.get('temp_dir', 'temp')
+        self.used_apktool = False
     
     def extract_apk(self, apk_path: str, output_dir: str) -> bool:
         """
@@ -45,6 +46,7 @@ class APKHandler:
             if not self._check_apktool():
                 # Fallback to ZIP extraction if apktool not available
                 self._log_warning("Apktool not found, using ZIP extraction (limited functionality)")
+                self.used_apktool = False
                 return self._extract_apk_as_zip(apk_path, output_dir)
             
             # Use apktool for proper extraction
@@ -61,10 +63,12 @@ class APKHandler:
                 
                 if result.returncode == 0:
                     self._log_success(f"APK extracted successfully to: {output_dir}")
+                    self.used_apktool = True
                     return True
                 else:
                     self._log_error(f"Apktool extraction failed: {result.stderr}")
                     # Fallback to ZIP extraction
+                    self.used_apktool = False
                     return self._extract_apk_as_zip(apk_path, output_dir)
             except subprocess.TimeoutExpired:
                 self._log_error("Apktool extraction timed out (5 minutes)")
@@ -74,6 +78,61 @@ class APKHandler:
             self._log_error(f"Error extracting APK: {e}")
             return False
     
+    def zipalign_apk(self, apk_path: str, output_path: Optional[str] = None) -> bool:
+        """
+        Align APK using zipalign
+
+        Args:
+            apk_path: Path to APK file
+            output_path: Output path (overwrites input if None)
+
+        Returns:
+            True if successful
+        """
+        try:
+            target_path = output_path or apk_path
+
+            # Use temp file if overwriting
+            if target_path == apk_path:
+                temp_path = apk_path + ".aligned"
+            else:
+                temp_path = target_path
+
+            self._log_info(f"Zipaligning APK: {os.path.basename(apk_path)}")
+
+            # Check for zipalign
+            zipalign_cmd = self.zipalign_path
+            if not os.path.exists(zipalign_cmd):
+                # Try to find zipalign in PATH
+                if shutil.which('zipalign'):
+                    zipalign_cmd = 'zipalign'
+                else:
+                    self._log_warning("zipalign not found! APK might not install on Android.")
+                    return False
+
+            cmd = [
+                zipalign_cmd,
+                '-p', '-f', '-v', '4',
+                apk_path,
+                temp_path
+            ]
+
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+
+            if result.returncode == 0:
+                if target_path == apk_path:
+                    # Move aligned file back to original path
+                    shutil.move(temp_path, apk_path)
+                self._log_success("APK aligned successfully")
+                return True
+            else:
+                self._log_error(f"zipalign failed: {result.stderr}")
+                return False
+
+        except Exception as e:
+            self._log_error(f"Error aligning APK: {e}")
+            return False
+
     def _extract_apk_as_zip(self, apk_path: str, output_dir: str) -> bool:
         """
         Extract APK as ZIP file (fallback method)
