@@ -18,18 +18,27 @@ class ImageOptimizer:
         else:
             print(message)
 
-    def resize_images(self, game_dir, target_height=720):
+    def resize_images(self, game_dir, target_height=720, manual_resolution=None):
         """
         Resizes all images in the game directory to match the target height,
         maintaining aspect ratio.
         """
         self.log(f"Starting image resizing to target height: {target_height}p")
 
-        # 1. Determine current resolution from gui.rpy or options.rpy
-        current_width, current_height = self._get_current_resolution(game_dir)
+        # 1. Determine current resolution
+        if manual_resolution:
+            try:
+                current_width, current_height = map(int, manual_resolution.split('x'))
+                self.log(f"Using manual resolution: {current_width}x{current_height}")
+            except ValueError:
+                self.log("Invalid manual resolution format. Use WIDTHxHEIGHT (e.g., 1920x1080).")
+                return False
+        else:
+            current_width, current_height = self._get_current_resolution(game_dir)
+
         if not current_width or not current_height:
             self.log("Could not determine current resolution. Aborting resize to prevent layout issues.")
-            self.log("Ensure gui.rpy or options.rpy exists and contains 'gui.init(w, h)' or 'config.screen_width/height'")
+            self.log("Ensure gui.rpy or options.rpy exists, or use --resolution WIDTHxHEIGHT to specify manually.")
             return False
 
         if current_height <= target_height:

@@ -32,7 +32,8 @@ class PortingEngine:
                   webp: bool = False,
                   hotkeys: bool = False,
                   mod_folders: list = None,
-                  conflict_strategy: str = "new_file") -> bool:
+                  conflict_strategy: str = "new_file",
+                  manual_resolution: str = None) -> bool:
 
         self.logger.info(f"Starting porting process for: {pc_game_dir}")
 
@@ -129,8 +130,12 @@ class PortingEngine:
                 self.mod_processor.install_mod_files(mod_files, priority, strategy)
 
         # 5. Apply Modifications (Resize, WebP, Hotkeys)
+        if not resize and not webp:
+            self.logger.warning("Optimization flags (resize/webp) are disabled. APK size will likely remain large.")
+            self.logger.warning("Use --resize or --webp to reduce APK size.")
+
         if resize:
-            self.optimizer.resize_images(dest_game_folder, target_height=720)
+            self.optimizer.resize_images(dest_game_folder, target_height=720, manual_resolution=manual_resolution)
 
         if webp:
             self.optimizer.convert_to_webp(dest_game_folder)

@@ -360,6 +360,7 @@ Examples:
     parser.add_argument('--resize', action='store_true', help='Resize images to 720p')
     parser.add_argument('--webp', action='store_true', help='Convert images to WebP')
     parser.add_argument('--hotkeys', action='store_true', help='Inject Android hotkeys')
+    parser.add_argument('--resolution', help='Manually specify resolution (e.g. 1920x1080)')
     
     args = parser.parse_args()
     
@@ -387,7 +388,8 @@ Examples:
             webp=args.webp,
             hotkeys=args.hotkeys,
             mod_folders=args.mod,
-            conflict_strategy=args.strategy
+            conflict_strategy=args.strategy,
+            manual_resolution=args.resolution
         )
     else:
         # Modding mode
