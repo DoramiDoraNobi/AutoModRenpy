@@ -5,6 +5,7 @@ from pathlib import Path
 from src.apk_handler import APKHandler
 from src.image_optimizer import ImageOptimizer
 from src.android_features import AndroidFeatures
+from src.mod_processor import ModProcessor, ConflictStrategy
 
 class PortingEngine:
     """
@@ -17,6 +18,7 @@ class PortingEngine:
         self.apk_handler = APKHandler(config, logger)
         self.optimizer = ImageOptimizer(logger)
         self.features = AndroidFeatures(logger)
+        self.mod_processor = ModProcessor(config, logger)
         self.temp_dir = config.get('temp_dir', 'temp')
 
     def port_game(self,
@@ -28,7 +30,9 @@ class PortingEngine:
                   icon_path: str = None,
                   resize: bool = False,
                   webp: bool = False,
-                  hotkeys: bool = False) -> bool:
+                  hotkeys: bool = False,
+                  mod_folders: list = None,
+                  conflict_strategy: str = "new_file") -> bool:
 
         self.logger.info(f"Starting porting process for: {pc_game_dir}")
 
@@ -93,7 +97,33 @@ class PortingEngine:
             self.logger.error(f"Failed to copy files: {e}")
             return False
 
-        # 4. Apply Modifications (Resize, WebP, Hotkeys)
+        # 4. Install Mods (if provided)
+        if mod_folders:
+            self.logger.info(f"Installing {len(mod_folders)} mods into ported game...")
+
+            # Use mod processor
+            # Note: dest_game_folder is likely .../x-game/game
+            # But mod_processor usually expects the root of the game folder to scan for 'game/' subfolder
+            # However, prepare_multiple_mods takes game_target_dir as the *destination* for files
+
+            # Map strategy string to enum
+            strategy_map = {
+                "new_file": ConflictStrategy.NEW_FILE,
+                "replace": ConflictStrategy.REPLACE,
+                "skip": ConflictStrategy.SKIP
+            }
+            strategy = strategy_map.get(conflict_strategy, ConflictStrategy.NEW_FILE)
+
+            # Prepare mods
+            # game_target_dir should be dest_game_folder because that's where 'game/script.rpy' lives
+            all_mods = self.mod_processor.prepare_multiple_mods(mod_folders, dest_game_folder)
+
+            # Install mods
+            for priority, mod_files in all_mods:
+                self.logger.info(f"Installing Mod {priority}...")
+                self.mod_processor.install_mod_files(mod_files, priority, strategy)
+
+        # 5. Apply Modifications (Resize, WebP, Hotkeys)
         if resize:
             self.optimizer.resize_images(dest_game_folder, target_height=720)
 
@@ -103,18 +133,22 @@ class PortingEngine:
         if hotkeys:
             self.features.inject_hotkeys(dest_game_folder)
 
-        # 5. Modify Manifest (Package Name, App Name)
+        # 6. Modify Manifest (Package Name, App Name)
         self._update_manifest(extract_dir, app_name, package_name)
 
-        # 6. Update Icon
+        # 7. Update Icon
         if icon_path:
             self._update_icon(extract_dir, icon_path)
 
-        # 7. Repackage
+        # 8. Repackage
         if not self.apk_handler.repackage_apk(extract_dir, output_apk_path):
             return False
 
-        # 8. Sign
+        # 9. Zipalign
+        if not self.apk_handler.zipalign_apk(output_apk_path):
+            self.logger.warning("Zipalign failed - APK might not install on some devices")
+
+        # 10. Sign
         if not self.apk_handler.sign_apk(output_apk_path):
             return False
 

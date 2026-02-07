@@ -29,6 +29,7 @@ class ImageOptimizer:
         current_width, current_height = self._get_current_resolution(game_dir)
         if not current_width or not current_height:
             self.log("Could not determine current resolution. Aborting resize to prevent layout issues.")
+            self.log("Ensure gui.rpy or options.rpy exists and contains 'gui.init(w, h)' or 'config.screen_width/height'")
             return False
 
         if current_height <= target_height:
@@ -131,27 +132,51 @@ class ImageOptimizer:
         """
         Parses gui.rpy or options.rpy to find `gui.init(width, height)`
         """
+        self.log(f"Searching for resolution in: {game_dir}")
+
+        # Helper to check content for resolution patterns
+        def check_content(content):
+            # Pattern 1: gui.init(1920, 1080)
+            # Handles varying spaces: gui.init ( 1920 , 1080 )
+            match = re.search(r'gui\.init\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)', content)
+            if match:
+                return int(match.group(1)), int(match.group(2))
+
+            # Pattern 2: define config.screen_width = 1920
+            w_match = re.search(r'(?:define\s+)?config\.screen_width\s*=\s*(\d+)', content)
+            h_match = re.search(r'(?:define\s+)?config\.screen_height\s*=\s*(\d+)', content)
+            if w_match and h_match:
+                return int(w_match.group(1)), int(h_match.group(1))
+
+            return None, None
+
         # Check gui.rpy first
         gui_rpy = os.path.join(game_dir, 'gui.rpy')
         if os.path.exists(gui_rpy):
-            with open(gui_rpy, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-                # Search for gui.init(1920, 1080)
-                match = re.search(r'gui\.init\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)', content)
-                if match:
-                    return int(match.group(1)), int(match.group(2))
+            try:
+                with open(gui_rpy, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                    w, h = check_content(content)
+                    if w and h:
+                        self.log(f"Found resolution {w}x{h} in gui.rpy")
+                        return w, h
+            except Exception as e:
+                self.log(f"Error reading gui.rpy: {e}")
 
-        # Check options.rpy (legacy)
+        # Check options.rpy (legacy or alternative)
         options_rpy = os.path.join(game_dir, 'options.rpy')
         if os.path.exists(options_rpy):
-            with open(options_rpy, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-                # config.screen_width = 1920
-                w_match = re.search(r'config\.screen_width\s*=\s*(\d+)', content)
-                h_match = re.search(r'config\.screen_height\s*=\s*(\d+)', content)
-                if w_match and h_match:
-                    return int(w_match.group(1)), int(h_match.group(1))
+            try:
+                with open(options_rpy, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                    w, h = check_content(content)
+                    if w and h:
+                        self.log(f"Found resolution {w}x{h} in options.rpy")
+                        return w, h
+            except Exception as e:
+                self.log(f"Error reading options.rpy: {e}")
 
+        self.log("Resolution patterns not found in gui.rpy or options.rpy")
         return None, None
 
     def _update_script_resolution(self, game_dir, width, height):
