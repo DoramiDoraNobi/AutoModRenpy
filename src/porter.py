@@ -92,7 +92,12 @@ class PortingEngine:
 
         self.logger.info(f"Copying game files to {dest_game_folder}...")
         try:
-            shutil.copytree(source_game_folder, dest_game_folder)
+            # Ignore common unnecessary files to save space
+            ignore_pattern = shutil.ignore_patterns(
+                'cache', 'saves', '.git*', '*.bak', '*.tmp',
+                'thumbs.db', '.DS_Store', '__pycache__'
+            )
+            shutil.copytree(source_game_folder, dest_game_folder, ignore=ignore_pattern)
         except Exception as e:
             self.logger.error(f"Failed to copy files: {e}")
             return False
