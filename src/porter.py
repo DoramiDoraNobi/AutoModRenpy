@@ -129,10 +129,6 @@ class PortingEngine:
                 self.mod_processor.install_mod_files(mod_files, priority, strategy)
 
         # 5. Apply Modifications (Resize, WebP, Hotkeys)
-        if not resize and not webp:
-            self.logger.warning("Optimization flags (resize/webp) are disabled. APK size will likely remain large.")
-            self.logger.warning("Use --resize or --webp to reduce APK size.")
-
         if resize:
             self.optimizer.resize_images(dest_game_folder, target_height=720)
 
