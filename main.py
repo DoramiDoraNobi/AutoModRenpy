@@ -385,7 +385,9 @@ Examples:
             icon_path=args.icon,
             resize=args.resize,
             webp=args.webp,
-            hotkeys=args.hotkeys
+            hotkeys=args.hotkeys,
+            mod_folders=args.mod,
+            conflict_strategy=args.strategy
         )
     else:
         # Modding mode
